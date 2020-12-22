@@ -10,7 +10,10 @@ DeclarationStore.prototype = {
   },
 
   replaceVariables: function (scssString) {
-    var replacedString = scssString.slice(scssString.indexOf("$"));
+    var replacedString = scssString;
+    if (scssString.indexOf("$") !== -1) {
+      replacedString = scssString.slice(scssString.indexOf("$"));
+    }
 
     this.declarations.forEach(function (declaration) {
       var variable = declaration.variable.value;
@@ -21,9 +24,11 @@ DeclarationStore.prototype = {
 
       if (!isSubset) {
         var regex = new RegExp("(\\" + variable + ")([\\W\\,]?)", "g");
+
         replacedString = replacedString.replace(regex, value + "$2");
       }
     });
+
     return replacedString;
   },
 };
