@@ -82,27 +82,6 @@ function normalizeLines(line) {
   return stripped.trim();
 }
 
-function bootlegSassResolver(from, to) {
-  const startingDir = path.dirname(from);
-  const yesExtension = path.resolve(startingDir, to);
-  const noExtensionNoUnderscore = path.resolve(startingDir, `${to}.scss`);
-  const noExtensionYesUnderscore = path.resolve(
-    startingDir,
-    path.dirname(noExtensionNoUnderscore),
-    `_${path.basename(to)}.scss`
-  );
-
-  if (fs.existsSync(yesExtension)) {
-    return yesExtension;
-  } else if (fs.existsSync(noExtensionNoUnderscore)) {
-    return noExtensionNoUnderscore;
-  } else if (fs.existsSync(noExtensionYesUnderscore)) {
-    return noExtensionYesUnderscore;
-  }
-
-  throw new Error(`Unable to resolve Sass import. from: ${from} to: ${to}`);
-}
-
 function declarationsFromString(filePath, declarationStore, options) {
   var data = fs.readFileSync(filePath, "utf8");
 
@@ -118,29 +97,6 @@ function declarationsFromString(filePath, declarationStore, options) {
   const linesWithoutImports = lines.filter(
     (line) => !line.startsWith("@use") && !line.startsWith("@forward")
   );
-
-  /*
-  const importedFiles = lines
-    .filter((line) => line.startsWith("@use"))
-    .map((el) => {
-      const firstQuoteIndex = Array.from(el).findIndex((el) =>
-        el.match(/['"]/)
-      );
-      const secondQuoteIndex =
-        Array.from(el)
-          .slice(firstQuoteIndex + 1)
-          .findIndex((el) => el.match(/['"]/)) +
-        firstQuoteIndex +
-        1;
-      const file = el.slice(firstQuoteIndex + 1, secondQuoteIndex);
-
-      return bootlegSassResolver(filePath, file);
-    });
-
-  for (const importedFile of importedFiles) {
-    declarationsFromString(importedFile, declarationStore, options);
-  }
-  */
 
   return linesWithoutImports.map(function (line) {
     return new Declaration(line, declarationStore);
