@@ -1,18 +1,19 @@
-'use strict';
+"use strict";
 
-var fs = require('fs');
-var Declaration = require('./declaration');
-var DeclarationStore = require('./declarationStore');
-var utilities = require('./utilities');
+var fs = require("fs");
+var path = require("path");
+var Declaration = require("./declaration");
+var DeclarationStore = require("./declarationStore");
+var utilities = require("./utilities");
 
-var LINE_DELIMITER = '\n';
-var COMMENT_DELIMETER = '//';
-var EMPTY_LINES = ['', '\n', '\s'];
+var LINE_DELIMITER = "\n";
+var COMMENT_DELIMETER = "//";
+var EMPTY_LINES = ["", "\n", "s"];
 
 function makeObject(declarations, options) {
   var output = {};
 
-  declarations.forEach(function(declaration) {
+  declarations.forEach(function (declaration) {
     if (hasScope(options)) {
       if (declaration.global) {
         output[declaration.variable.value] = declaration.value.value;
@@ -26,7 +27,7 @@ function makeObject(declarations, options) {
 }
 
 function filterLines(line) {
-  return EMPTY_LINES.every(function(lineValue) {
+  return EMPTY_LINES.every(function (lineValue) {
     return line !== lineValue && line.slice(0, 2) !== COMMENT_DELIMETER;
   });
 }
@@ -34,14 +35,14 @@ function filterLines(line) {
 function getScopeIndices(data, scope) {
   var startIndex;
   var endIndex;
-  var regex = new RegExp('\\' + scope + '.*\{', 'g');
+  var regex = new RegExp("\\" + scope + ".*{", "g");
   var match = data.match(regex);
 
   if (match) {
     for (var i = data.indexOf(match[0]); i < data.length; i++) {
-      if (data[i] === '{') {
+      if (data[i] === "{") {
         startIndex = i;
-      } else if (data[i] === '}') {
+      } else if (data[i] === "}") {
         endIndex = i;
         break;
       }
@@ -50,7 +51,7 @@ function getScopeIndices(data, scope) {
 
   return {
     start: startIndex,
-    end: endIndex
+    end: endIndex,
   };
 }
 
@@ -59,14 +60,17 @@ function extractScope(data, scope) {
   var scopeIndices = getScopeIndices(data, scope);
 
   if (scopeIndices.start && scopeIndices.end) {
-    extractedScope = extractedScope.substring(scopeIndices.start + 1, scopeIndices.end - 1);
+    extractedScope = extractedScope.substring(
+      scopeIndices.start + 1,
+      scopeIndices.end - 1
+    );
   }
 
   return extractedScope;
 }
 
 function hasScope(options) {
-  return options && options.scope && typeof options.scope === 'string';
+  return options && options.scope && typeof options.scope === "string";
 }
 
 function hasDependencies(options) {
@@ -78,15 +82,67 @@ function normalizeLines(line) {
   return stripped.trim();
 }
 
-function declarationsFromString(path, declarationStore, options) {
-  var data = fs.readFileSync(path, 'utf8');
+function bootlegSassResolver(from, to) {
+  const startingDir = path.dirname(from);
+  const yesExtension = path.resolve(startingDir, to);
+  const noExtensionNoUnderscore = path.resolve(startingDir, `${to}.scss`);
+  const noExtensionYesUnderscore = path.resolve(
+    startingDir,
+    path.dirname(noExtensionNoUnderscore),
+    `_${path.basename(to)}.scss`
+  );
+
+  if (fs.existsSync(yesExtension)) {
+    return yesExtension;
+  } else if (fs.existsSync(noExtensionNoUnderscore)) {
+    return noExtensionNoUnderscore;
+  } else if (fs.existsSync(noExtensionYesUnderscore)) {
+    return noExtensionYesUnderscore;
+  }
+
+  throw new Error(`Unable to resolve Sass import. from: ${from} to: ${to}`);
+}
+
+function declarationsFromString(filePath, declarationStore, options) {
+  var data = fs.readFileSync(filePath, "utf8");
 
   if (hasScope(options)) {
     data = extractScope(data, options.scope);
   }
 
-  var lines = String(data).split(LINE_DELIMITER).map(normalizeLines).filter(filterLines);
-  return lines.map(function(line) {
+  var lines = String(data)
+    .split(LINE_DELIMITER)
+    .map(normalizeLines)
+    .filter(filterLines);
+
+  const linesWithoutImports = lines.filter(
+    (line) => !line.startsWith("@use") && !line.startsWith("@forward")
+  );
+
+  /*
+  const importedFiles = lines
+    .filter((line) => line.startsWith("@use"))
+    .map((el) => {
+      const firstQuoteIndex = Array.from(el).findIndex((el) =>
+        el.match(/['"]/)
+      );
+      const secondQuoteIndex =
+        Array.from(el)
+          .slice(firstQuoteIndex + 1)
+          .findIndex((el) => el.match(/['"]/)) +
+        firstQuoteIndex +
+        1;
+      const file = el.slice(firstQuoteIndex + 1, secondQuoteIndex);
+
+      return bootlegSassResolver(filePath, file);
+    });
+
+  for (const importedFile of importedFiles) {
+    declarationsFromString(importedFile, declarationStore, options);
+  }
+  */
+
+  return linesWithoutImports.map(function (line) {
     return new Declaration(line, declarationStore);
   });
 }
@@ -96,7 +152,7 @@ function Processor(path, options) {
   var declarationStore = new DeclarationStore();
 
   if (hasDependencies(options)) {
-    options.dependencies.forEach(function(dependency) {
+    options.dependencies.forEach(function (dependency) {
       declarationsFromString(dependency.path, declarationStore, dependency);
     });
   }
